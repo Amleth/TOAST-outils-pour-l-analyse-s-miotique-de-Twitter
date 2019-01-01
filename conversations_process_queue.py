@@ -1,0 +1,3 @@
+from conversations_scraping import process_queue_get_root_tweets
+
+process_queue_get_root_tweets()

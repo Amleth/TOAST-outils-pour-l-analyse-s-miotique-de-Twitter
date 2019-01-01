@@ -1,0 +1,6 @@
+__pycache__
+segreto.conf
+pictures
+pictures.sqlite
+conversations.sqlite
+geckodriver.log
