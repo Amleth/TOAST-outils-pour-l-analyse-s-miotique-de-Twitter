@@ -77,58 +77,86 @@ def scrape(root_tweet_id):
     browser.get(get_tweet_url(root_tweet_id))
     page = browser.find_element_by_tag_name('body')
 
-    if not browser.find_element_by_css_selector('div.permalink-footer').is_displayed():
-        while not browser.find_element_by_css_selector('div.stream-end-inner').is_displayed():
-            page.send_keys(Keys.PAGE_DOWN)
-            time.sleep(0.5)
-            print(f'{symbol}  page down…')
+    try:
+        if not browser.find_element_by_css_selector('div.permalink-footer').is_displayed():
+            while not browser.find_element_by_css_selector('div.stream-end-inner').is_displayed():
+                page.send_keys(Keys.PAGE_DOWN)
+                time.sleep(0.5)
+                print(f'{symbol}  page down…')
 
-    more_replies_links = browser.find_elements_by_class_name(
-        'ThreadedConversation-moreRepliesLink')
-    for x in range(0, len(more_replies_links)):
-        if more_replies_links[x].is_displayed():
-            more_replies_links[x].click()
+        more_replies_links = browser.find_elements_by_class_name(
+            'ThreadedConversation-moreRepliesLink')
+        for x in range(0, len(more_replies_links)):
+            if more_replies_links[x].is_displayed():
+                more_replies_links[x].click()
 
-    #
-    # TWEETS SELECTION
-    #
+        #
+        # TWEETS SELECTION
+        #
 
-    selector = Selector(text=browser.page_source)
+        selector = Selector(text=browser.page_source)
 
-    # Root tweet
+        # Root tweet
 
-    root_user_screenname = selector.css(
-        'div.permalink-inner.permalink-tweet-container > div.tweet.permalink-tweet ::attr(data-screen-name)').extract_first()
-    root_user_name = selector.css(
-        'div.permalink-inner.permalink-tweet-container > div.tweet.permalink-tweet ::attr(data-name)').extract_first()
-    root_user_userid = selector.css(
-        'div.permalink-inner.permalink-tweet-container > div.tweet.permalink-tweet ::attr(data-user-id)').extract_first()
-    root_text = selector.css('div.permalink-inner.permalink-tweet-container').css(
-        '.TweetTextSize ::text').extract_first()
-    root_timestamp = selector.css(
-        '.permalink-header').css('.time').css('span ::attr(data-time)').extract_first()
+        root_user_screenname = selector.css(
+            'div.permalink-inner.permalink-tweet-container > div.tweet.permalink-tweet ::attr(data-screen-name)').extract_first()
+        root_user_name = selector.css(
+            'div.permalink-inner.permalink-tweet-container > div.tweet.permalink-tweet ::attr(data-name)').extract_first()
+        root_user_userid = selector.css(
+            'div.permalink-inner.permalink-tweet-container > div.tweet.permalink-tweet ::attr(data-user-id)').extract_first()
+        root_text = selector.css('div.permalink-inner.permalink-tweet-container').css(
+            '.TweetTextSize ::text').extract_first()
+        root_timestamp = selector.css(
+            '.permalink-header').css('.time').css('span ::attr(data-time)').extract_first()
 
-    conversations_db.add_tweet_in_conversation(
-        root_tweet_id,
-        root_tweet_id,
-        0,
-        root_timestamp,
-        root_text,
-        root_user_userid,
-        root_user_name,
-        root_user_screenname
-    )
+        conversations_db.add_tweet_in_conversation(
+            root_tweet_id,
+            root_tweet_id,
+            0,
+            root_timestamp,
+            root_text,
+            root_user_userid,
+            root_user_name,
+            root_user_screenname
+        )
 
-    # Conversations
+        # Conversations
 
-    count = 0
-    conversations_count = 0
-    lone_tweets_count = 0
+        count = 0
+        conversations_count = 0
+        lone_tweets_count = 0
 
-    for conversation in selector.css('.ThreadedConversation'):
-        conversations_count += 1
-        for tweet in conversation.css('.ThreadedConversation-tweet'):
+        for conversation in selector.css('.ThreadedConversation'):
+            conversations_count += 1
+            for tweet in conversation.css('.ThreadedConversation-tweet'):
+                count += 1
+                tweet_id = tweet.css(
+                    'div.tweet ::attr(data-tweet-id)').extract_first()
+                tweet_user_screenname = tweet.css(
+                    'div.tweet ::attr(data-screen-name)').extract_first()
+                tweet_user_name = tweet.css(
+                    'div.tweet ::attr(data-name)').extract_first()
+                tweet_user_id = tweet.css(
+                    'div.tweet ::attr(data-user-id)').extract_first()
+                tweet_text = tweet.css('.TweetTextSize ::text').extract()
+                tweet_text = ''.join(tweet_text)
+                tweet_text = tweet_text.replace('\n', '')
+                tweet_timestamp = tweet.css(
+                    'span._timestamp ::attr(data-time)').extract_first()
+                conversations_db.add_tweet_in_conversation(
+                    root_tweet_id,
+                    tweet_id,
+                    conversations_count,
+                    tweet_timestamp,
+                    tweet_text,
+                    tweet_user_id,
+                    tweet_user_name,
+                    tweet_user_screenname
+                )
+
+        for tweet in selector.css('.ThreadedConversation--loneTweet'):
             count += 1
+            lone_tweets_count += 1
             tweet_id = tweet.css(
                 'div.tweet ::attr(data-tweet-id)').extract_first()
             tweet_user_screenname = tweet.css(
@@ -142,6 +170,7 @@ def scrape(root_tweet_id):
             tweet_text = tweet_text.replace('\n', '')
             tweet_timestamp = tweet.css(
                 'span._timestamp ::attr(data-time)').extract_first()
+
             conversations_db.add_tweet_in_conversation(
                 root_tweet_id,
                 tweet_id,
@@ -153,33 +182,10 @@ def scrape(root_tweet_id):
                 tweet_user_screenname
             )
 
-    for tweet in selector.css('.ThreadedConversation--loneTweet'):
-        count += 1
-        lone_tweets_count += 1
-        tweet_id = tweet.css('div.tweet ::attr(data-tweet-id)').extract_first()
-        tweet_user_screenname = tweet.css(
-            'div.tweet ::attr(data-screen-name)').extract_first()
-        tweet_user_name = tweet.css(
-            'div.tweet ::attr(data-name)').extract_first()
-        tweet_user_id = tweet.css(
-            'div.tweet ::attr(data-user-id)').extract_first()
-        tweet_text = tweet.css('.TweetTextSize ::text').extract()
-        tweet_text = ''.join(tweet_text)
-        tweet_text = tweet_text.replace('\n', '')
-        tweet_timestamp = tweet.css(
-            'span._timestamp ::attr(data-time)').extract_first()
+        browser.close()
 
-        conversations_db.add_tweet_in_conversation(
-            root_tweet_id,
-            tweet_id,
-            conversations_count,
-            tweet_timestamp,
-            tweet_text,
-            tweet_user_id,
-            tweet_user_name,
-            tweet_user_screenname
-        )
+        print(f'{symbol}  {count}t {conversations_count}c {lone_tweets_count}l')
 
-    browser.close()
-
-    print(f'{symbol}  {count} {conversations_count} {lone_tweets_count}')
+    except Exception as e:
+        print(f'{symbol}  {e}')
+        browser.close()
