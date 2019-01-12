@@ -8,7 +8,10 @@ import json
 import tweepy
 from PicturesSqliteDb import PicturesSqliteDb
 from pymongo import MongoClient
+import signal
+import sys
 import time
+from common_twitter import get_tweet_url
 
 ################################################################################
 #
@@ -31,35 +34,33 @@ access_secret = secret_config.get('Twitter', 'access_secret')
 # Data
 #
 
-collazionare_config = configparser.ConfigParser()
-collazionare_config.read('toast.conf')
+config = configparser.ConfigParser()
+config.read('toast.conf')
 
 # Pictures
-pictures_database_path = collazionare_config.get('Pictures', 'database')
+pictures_database_path = config.get('Pictures', 'database')
 pictures_db = PicturesSqliteDb(pictures_database_path)
-pictures_service_port = int(
-    collazionare_config.get('Pictures', 'service_port'))
-picture_symbol = collazionare_config.get('Pictures', 'symbol')
+picture_symbol = config.get('Pictures', 'symbol')
 
 # Conversations
-conversation_database_path = collazionare_config.get(
+conversation_database_path = config.get(
     'Conversations', 'database')
 conversations_db = ConversationsSqliteDb(conversation_database_path)
-conversations_service_port = int(
-    collazionare_config.get('Conversations', 'service_port'))
-conversation_symbol = collazionare_config.get('Conversations', 'symbol')
+conversation_symbol = config.get('Conversations', 'symbol')
 
 # MongoDB
-database_name = collazionare_config.get('Tweets', 'database')
-collection_name = collazionare_config.get('Tweets', 'collection')
+database_name = config.get('Tweets', 'database')
+collection_name = config.get('Tweets', 'collection')
 client = MongoClient()
 db = client[database_name]
 collection = db[collection_name]
 
 # Streaming
-track = collazionare_config.get('Streaming', 'track').split(",")
+track = config.get('Streaming', 'track').split(",")
 track = list(map(str.strip, track))
-streaming_symbol = collazionare_config.get('Streaming', 'symbol')
+streaming_symbol = config.get('Streaming', 'symbol')
+retweet_symbol = config.get('Streaming', 'retweet_symbol')
+quoted_tweet_symbol = config.get('Streaming', 'quoted_tweet_symbol')
 
 ################################################################################
 #
@@ -71,28 +72,6 @@ auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
 auth.set_access_token(access_key, access_secret)
 api = tweepy.API(auth, wait_on_rate_limit=True,
                  wait_on_rate_limit_notify=True, compression=True)
-
-# Pictures service
-
-try:
-    pictures_service_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    pictures_service_socket.connect(('127.0.0.1', pictures_service_port))
-except ConnectionRefusedError as e:
-    pictures_service_socket = None
-    print(
-        f"{streaming_symbol}  Can't connect to pictures service on port {pictures_service_port} —", e)
-
-# Conversations service
-
-try:
-    conversations_service_socket = socket.socket(
-        socket.AF_INET, socket.SOCK_STREAM)
-    conversations_service_socket.connect(
-        ('127.0.0.1', conversations_service_port))
-except ConnectionRefusedError as e:
-    conversations_service_socket = None
-    print(
-        f"{streaming_symbol}  Can't connect to conversations service on port {conversations_service_port} —", e)
 
 
 class StreamListener(tweepy.StreamListener):
@@ -110,18 +89,24 @@ class StreamListener(tweepy.StreamListener):
             for e in status.entities["media"]:
                 number_of_pictures += 1
                 pictures_db.census_picture_tweet(status.id_str, e["media_url"])
-                if pictures_service_socket:
-                    pictures_service_socket.sendall(b"ping")
+
+        in_reply_to = status.in_reply_to_status_id_str
+
+        # Retweet
+        rt = hasattr(status, "retweeted_status")
+        if rt:
+            if status.retweeted_status.in_reply_to_status_id_str:
+                in_reply_to = status.retweeted_status.in_reply_to_status_id_str
 
         # Conversation
-        conversations_db.census_tweet(
-            status.id_str, status.in_reply_to_status_id_str)
-        if status.in_reply_to_status_id_str:
-            if conversations_service_socket:
-                conversations_service_socket.sendall(b"ping")
+        conversations_db.census_tweet(status.id_str, in_reply_to)
+
+        # Quoted tweet
+        # TODO
+        quoted_tweet = hasattr(status, "quoted_status")
 
         print(
-            f"{streaming_symbol}  🐦 {status.id_str} 🕓 {date} 💾 {id} {picture_symbol * number_of_pictures}{conversation_symbol if status.in_reply_to_status_id_str else ''}"
+            f"{streaming_symbol}  🐦 {get_tweet_url(status.id_str)} 🕓 {date} 💾 {id} {retweet_symbol if rt else ''}{picture_symbol * number_of_pictures}{conversation_symbol if in_reply_to else ''}{quoted_tweet_symbol if quoted_tweet else ''}"
         )
 
     def on_error(self, status_code):
@@ -133,4 +118,14 @@ class StreamListener(tweepy.StreamListener):
 
 stream_listener = StreamListener()
 stream = tweepy.Stream(auth=api.auth, listener=stream_listener)
+
+
+def signal_handler(sig, frame):
+    print('You pressed Ctrl+C!')
+    client.close()
+    stream.disconnect()
+    print('Ciao!')
+
+
+signal.signal(signal.SIGINT, signal_handler)
 stream.filter(track=track)
