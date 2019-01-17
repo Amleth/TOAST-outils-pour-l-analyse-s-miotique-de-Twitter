@@ -4,3 +4,5 @@ pictures
 pictures.sqlite
 conversations.sqlite
 geckodriver.log
+data.xlsx
+.DS_Store
