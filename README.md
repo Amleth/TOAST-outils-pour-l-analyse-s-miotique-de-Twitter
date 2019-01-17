@@ -16,6 +16,7 @@
   - configuration générale => `toast.conf`
 - lancer MongoDB
 - lancer la captation : `python3 raccogliere.py` (stop : `Ctrl+C`)
+- besoin de filtrer le corpus de captation ? : lire & ajuster `mongo_text_filter.js`, puis exécuter `mongo mongo_text_filter.js`
 
 ## Enrichissement du corpus
 
