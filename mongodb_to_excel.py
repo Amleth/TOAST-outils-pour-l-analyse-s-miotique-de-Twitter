@@ -14,10 +14,10 @@ worksheet.write(0, 3, "retweeted_status_id_str", bold)
 worksheet.write(0, 4, "source", bold)
 worksheet.write(0, 5, "text", bold)
 worksheet.write(0, 6, "timestamp_ms", bold)
-worksheet.write(0, 7, "urls", bold)
-worksheet.write(0, 8, "user_id_str", bold)
-worksheet.write(0, 9, "user_name", bold)
-worksheet.write(0, 10, "user_screen_name", bold)
+worksheet.write(0, 7, "user_id_str", bold)
+worksheet.write(0, 8, "user_name", bold)
+worksheet.write(0, 9, "user_screen_name", bold)
+worksheet.write(0, 10, "user_description", bold)
 
 client = MongoClient()
 db = client.si90
@@ -43,18 +43,25 @@ for t in collection.find():
 
     source = j["source"]
 
-    text = j["text"]
+    text = None
+
+    if "retweeted_status" in j:
+        if not 'extended_tweet' in j['retweeted_status']:
+            text = j['retweeted_status']['text']
+        else:
+            text = j['retweeted_status']['extended_tweet']['full_text']
+    else:
+        if not 'extended_tweet' in j:
+            text = j['text']
+        else:
+            text = j['extended_tweet']['full_text']
 
     timestamp_ms = j["timestamp_ms"]
-
-    urls = []
-    for url in j["entities"]["urls"]:
-        urls.append({"url": url["url"], "expanded_url": url["expanded_url"]})
-    urls = json.dumps(urls)
 
     user_id_str = j["user"]["id_str"]
     user_name = j["user"]["name"]
     user_screen_name = j["user"]["screen_name"]
+    user_description = j["user"]["description"]
 
     # WRITE
     worksheet.write(line, 0, created_at)
@@ -64,10 +71,10 @@ for t in collection.find():
     worksheet.write(line, 4, source)
     worksheet.write(line, 5, text)
     worksheet.write(line, 6, timestamp_ms)
-    worksheet.write(line, 7, urls)
-    worksheet.write(line, 8, user_id_str)
-    worksheet.write(line, 9, user_name)
-    worksheet.write(line, 10, user_screen_name)
+    worksheet.write(line, 7, user_id_str)
+    worksheet.write(line, 8, user_name)
+    worksheet.write(line, 9, user_screen_name)
+    worksheet.write(line, 10, user_description)
 
     line += 1
 
