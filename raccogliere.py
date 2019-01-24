@@ -105,9 +105,22 @@ class StreamListener(tweepy.StreamListener):
         # TODO
         quoted_tweet = hasattr(status, "quoted_status")
 
+        # Extraction du texte complet
+        text = None
+        if not rt:
+            text = status.text
+            if hasattr(status, "extended_tweet"):
+                text = status.extended_tweet['full_text']
+        else:
+            text = status.retweeted_status.text
+            if hasattr(status.retweeted_status, "extended_tweet"):
+                text = status.retweeted_status.extended_tweet['full_text']
+
+        print("================================================================================")
         print(
             f"{streaming_symbol}  🐦 {get_tweet_url(status.id_str)} 🕓 {date} 💾 {id} {retweet_symbol if rt else ''}{picture_symbol * number_of_pictures}{conversation_symbol if in_reply_to else ''}{quoted_tweet_symbol if quoted_tweet else ''}"
         )
+        print(f"{text}")
 
     def on_error(self, status_code):
         print(f'{streaming_symbol}  ERROR: {status_code}')
