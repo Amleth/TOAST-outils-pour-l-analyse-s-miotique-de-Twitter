@@ -97,7 +97,11 @@ class StreamListener(tweepy.StreamListener):
 
         # Écriture du tweet dans MongoDB
 
-        o = {"raw": raw_json, "fulltext": fulltext}
+        o = {
+            "raw": raw_json,
+            "fulltext": fulltext,
+            "track": config.get('Streaming', 'track')
+        }
         id = collection.insert_one(o).inserted_id
 
         # TODO
@@ -155,9 +159,9 @@ class StreamListener(tweepy.StreamListener):
         print(
             f"{streaming_symbol}  🐦 {get_tweet_url(status.id_str)} 🕓 {date} 💾 {id} {retweet_symbol if rt else ''}{picture_symbol * number_of_pictures}{conversation_symbol if in_reply_to else ''}{quoted_tweet_symbol if quoted_tweet else ''}"
         )
-        # print(f"{fulltext}")
-        print(videos_urls)
-        print(pictures_urls)
+        print(f"{fulltext}")
+        # print(videos_urls)
+        # print(pictures_urls)
 
     def on_error(self, status_code):
         print(f'{streaming_symbol}  ERROR: {status_code}')
