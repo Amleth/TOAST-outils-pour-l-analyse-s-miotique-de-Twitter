@@ -18,6 +18,8 @@ worksheet.write(0, 7, "user_id_str", bold)
 worksheet.write(0, 8, "user_name", bold)
 worksheet.write(0, 9, "user_screen_name", bold)
 worksheet.write(0, 10, "user_description", bold)
+worksheet.write(0, 11, "hashtags", bold)
+worksheet.write(0, 12, "urls", bold)
 
 client = MongoClient()
 db = client.si90
@@ -63,6 +65,32 @@ for t in collection.find():
     user_screen_name = j["user"]["screen_name"]
     user_description = j["user"]["description"]
 
+    hashtags = []
+    if "retweeted_status" in j:
+        if not 'extended_tweet' in j['retweeted_status']:
+            hashtags = j['retweeted_status']['entities']['hashtags']
+        else:
+            hashtags = j['retweeted_status']['extended_tweet']['entities']['hashtags']
+    else:
+        if not 'extended_tweet' in j:
+            hashtags = j['entities']['hashtags']
+        else:
+            hashtags = j['extended_tweet']['entities']['hashtags']
+    hashtags = list(map(lambda x: f"#{x['text']}", hashtags))
+
+    urls = []
+    if "retweeted_status" in j:
+        if not 'extended_tweet' in j['retweeted_status']:
+            urls = j['retweeted_status']['entities']['urls']
+        else:
+            urls = j['retweeted_status']['extended_tweet']['entities']['urls']
+    else:
+        if not 'extended_tweet' in j:
+            urls = j['entities']['urls']
+        else:
+            urls = j['extended_tweet']['entities']['urls']
+    urls = list(map(lambda x: f"URL-{x['expanded_url']}", urls))
+
     # WRITE
     worksheet.write(line, 0, created_at)
     worksheet.write(line, 1, id_str)
@@ -75,6 +103,8 @@ for t in collection.find():
     worksheet.write(line, 8, user_name)
     worksheet.write(line, 9, user_screen_name)
     worksheet.write(line, 10, user_description)
+    worksheet.write(line, 11, ' '.join(hashtags))
+    worksheet.write(line, 12, ' '.join(urls))
 
     line += 1
 
