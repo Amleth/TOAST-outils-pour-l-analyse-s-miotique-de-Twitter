@@ -12,6 +12,7 @@ import signal
 import sys
 import time
 from common_twitter import get_tweet_url
+from urllib3.exceptions import ProtocolError
 
 ################################################################################
 #
@@ -80,20 +81,65 @@ class StreamListener(tweepy.StreamListener):
         raw_json = status._json
         date = datetime.fromtimestamp(float(status.timestamp_ms) / 1000)
 
-        o = {"raw": raw_json}
+        # Is retweet?
+        rt = hasattr(status, "retweeted_status")
+
+        # Extraction du texte complet
+        fulltext = None
+        if not rt:
+            fulltext = status.text
+            if hasattr(status, "extended_tweet"):
+                fulltext = status.extended_tweet['full_text']
+        else:
+            fulltext = status.retweeted_status.text
+            if hasattr(status.retweeted_status, "extended_tweet"):
+                fulltext = status.retweeted_status.extended_tweet['full_text']
+
+        # Écriture du tweet dans MongoDB
+
+        o = {"raw": raw_json, "fulltext": fulltext}
         id = collection.insert_one(o).inserted_id
 
+        # TODO
         # Pictures
         number_of_pictures = 0
-        if "media" in status.entities:
-            for e in status.entities["media"]:
-                number_of_pictures += 1
-                pictures_db.census_picture_tweet(status.id_str, e["media_url"])
+        pictures_urls = []
+        videos_urls = []
+        # media = None
+        # if not rt:
+        #     if not hasattr(status, "extended_tweet"):
+        #         # Tweet non retweeté < 140 caractères
+        #         if hasattr(status, "entities"):
+        #             if hasattr(status.entities, "media"):
+        #                 media = status.entities.media
+        #                 print(1)
+        #     else:
+        #         # Tweet non retweeté > 140 caractères
+        #         if hasattr(status.extended_tweet, "entities"):
+        #             if hasattr(status.extended_tweet.entities, "media"):
+        #                 media = status.extended_tweet.entities.media
+        #                 print(2)
+        # else:
+        #     if not hasattr(status.retweeted_status, "extended_tweet"):
+        #         print(status.retweeted_status)
+        #         # Tweet retweeté < 140 caractères
+        #         if hasattr(status.retweeted_status, "entities"):
+        #             if hasattr(status.retweeted_status.entities, "media"):
+        #                 media = status.retweeted_status.entities.media
+        #                 print(3)
+        #     else:
+        #         # Tweet retweeté > 140 caractères
+        #         if hasattr(status.retweeted_status.extended_tweet, "entities"):
+        #             if hasattr(status.retweeted_status.extended_tweet.entities, "media"):
+        #                 media = status.retweeted_status.extended_tweet.entities.media
+        #                 print(4)
+        # print(media)
+        # if "media" in status.entities:
+        #     for e in media:
+        #         number_of_pictures += 1
+        #         pictures_db.census_picture_tweet(status.id_str, e["media_url"])
 
         in_reply_to = status.in_reply_to_status_id_str
-
-        # Retweet
-        rt = hasattr(status, "retweeted_status")
         if rt:
             if status.retweeted_status.in_reply_to_status_id_str:
                 in_reply_to = status.retweeted_status.in_reply_to_status_id_str
@@ -102,25 +148,16 @@ class StreamListener(tweepy.StreamListener):
         conversations_db.census_tweet(status.id_str, in_reply_to)
 
         # Quoted tweet
-        # TODO
         quoted_tweet = hasattr(status, "quoted_status")
-
-        # Extraction du texte complet
-        text = None
-        if not rt:
-            text = status.text
-            if hasattr(status, "extended_tweet"):
-                text = status.extended_tweet['full_text']
-        else:
-            text = status.retweeted_status.text
-            if hasattr(status.retweeted_status, "extended_tweet"):
-                text = status.retweeted_status.extended_tweet['full_text']
+        # TODO
 
         print("================================================================================")
         print(
             f"{streaming_symbol}  🐦 {get_tweet_url(status.id_str)} 🕓 {date} 💾 {id} {retweet_symbol if rt else ''}{picture_symbol * number_of_pictures}{conversation_symbol if in_reply_to else ''}{quoted_tweet_symbol if quoted_tweet else ''}"
         )
-        print(f"{text}")
+        # print(f"{fulltext}")
+        print(videos_urls)
+        print(pictures_urls)
 
     def on_error(self, status_code):
         print(f'{streaming_symbol}  ERROR: {status_code}')
@@ -142,3 +179,10 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 stream.filter(track=track)
+
+# while True:
+#     try:
+#         stream.filter(track=track)
+#     except Exception as error:
+#         print(error)
+#         continue
