@@ -45,18 +45,7 @@ for t in collection.find():
 
     source = j["source"]
 
-    text = None
-
-    if "retweeted_status" in j:
-        if not 'extended_tweet' in j['retweeted_status']:
-            text = j['retweeted_status']['text']
-        else:
-            text = j['retweeted_status']['extended_tweet']['full_text']
-    else:
-        if not 'extended_tweet' in j:
-            text = j['text']
-        else:
-            text = j['extended_tweet']['full_text']
+    text = t["fulltext"]
 
     timestamp_ms = j["timestamp_ms"]
 
