@@ -74,4 +74,7 @@ def process_queue():
         else:
             print(f"{symbol}  error")
             pictures_db.census_error(
-                picture["tweet_id"], picture["url"])
+                picture["tweet_id"],
+                picture["type"],
+                picture["url"]
+            )

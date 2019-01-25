@@ -36,7 +36,7 @@ class PicturesSqliteDb(CommonSqliteAbstractDb):
             (tweet_id, url)
         ).fetchone()
 
-    def census_error(self,  tweet_id, type, url):
+    def census_error(self, tweet_id, type, url):
         self.census_picture_tweet(url, tweet_id, type)
         c = self.db.cursor()
         c.execute(
