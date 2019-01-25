@@ -26,17 +26,24 @@ def init(directory):
         os.makedirs(directory)
 
 
-def get_file_extension(url):
-    return Path(url.split('/')[-1]).suffix
+def get_file_extension(type, url):
+    if type == 'p':
+        return Path(url.split('/')[-1]).suffix
+    elif type == 'v':
+        p = url.split('/')[-1]
+        p = p.split('?')[0]
+        return Path(p).suffix
+    else:
+        return None
 
 
-def download_picture(tweet_id, url):
+def download_picture(tweet_id, type, url):
     try:
         response = requests.get(url, timeout=5)
         sha1 = hashlib.sha1()
         sha1.update(response.content)
         sha1 = sha1.hexdigest()
-        extension = get_file_extension(url)
+        extension = get_file_extension(type, url)
         filename = sha1 + extension
         with open(pictures_download_directory / filename, 'wb') as fout:
             fout.write(response.content)
@@ -54,7 +61,8 @@ def process_queue():
             f"{symbol}  Trying to download {picture['url']} (from tweet {get_tweet_url(picture['tweet_id'])})…")
         (sha1, extension) = download_picture(
             picture["tweet_id"],
-            picture["url"]
+            picture["type"],
+            picture["url"],
         )
         if sha1 and extension:
             pictures_db.set_sha1(
@@ -65,4 +73,5 @@ def process_queue():
             )
         else:
             print(f"{symbol}  error")
-            pictures_db.census_error(picture["tweet_id"], picture["url"])
+            pictures_db.census_error(
+                picture["media_id"], picture["tweet_id"], picture["url"])

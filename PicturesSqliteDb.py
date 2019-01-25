@@ -11,6 +11,7 @@ class PicturesSqliteDb(CommonSqliteAbstractDb):
             extension TEXT,
             sha1 TEXT,
             tweet_id TEXT,
+            type TEXT,
             url TEXT,
             PRIMARY KEY (url, tweet_id),
             UNIQUE (url, sha1, tweet_id)
@@ -18,13 +19,13 @@ class PicturesSqliteDb(CommonSqliteAbstractDb):
         """)
         self.db.commit()
 
-    def census_picture_tweet(self, tweet_id, url):
+    def census_picture_tweet(self, tweet_id, type, url):
         c = self.db.cursor()
         exists = self.get(url, tweet_id)
         if not exists:
             c.execute(
-                'INSERT INTO pictures (error, url, tweet_id) VALUES (?, ?, ?)',
-                (-1, url, tweet_id)
+                'INSERT INTO pictures (error, url, tweet_id, type) VALUES (?, ?, ?, ?)',
+                (-1, url, tweet_id, type)
             )
             self.db.commit()
 
@@ -35,8 +36,8 @@ class PicturesSqliteDb(CommonSqliteAbstractDb):
             (tweet_id, url)
         ).fetchone()
 
-    def census_error(self, tweet_id, url):
-        self.census_picture_tweet(url, tweet_id)
+    def census_error(self,  tweet_id, type, url):
+        self.census_picture_tweet(url, tweet_id, type)
         c = self.db.cursor()
         c.execute(
             'UPDATE pictures SET error = 1 WHERE tweet_id = ? AND url = ?',

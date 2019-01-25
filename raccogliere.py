@@ -1,7 +1,7 @@
 print()
 
 import configparser
-from ConversationsSqliteDb import ConversationsSqliteDb
+# from ConversationsSqliteDb import ConversationsSqliteDb
 import socket
 from datetime import datetime
 import json
@@ -12,7 +12,11 @@ import signal
 import sys
 import time
 from common_twitter import get_tweet_url
+
 from urllib3.exceptions import ProtocolError
+from ssl import SSLError
+from requests.exceptions import Timeout, ConnectionError
+from urllib3.exceptions import ReadTimeoutError
 
 ################################################################################
 #
@@ -42,11 +46,12 @@ config.read('toast.conf')
 pictures_database_path = config.get('Pictures', 'database')
 pictures_db = PicturesSqliteDb(pictures_database_path)
 picture_symbol = config.get('Pictures', 'symbol')
+video_symbol = config.get('Pictures', 'symbol_video')
 
 # Conversations
 conversation_database_path = config.get(
     'Conversations', 'database')
-conversations_db = ConversationsSqliteDb(conversation_database_path)
+# conversations_db = ConversationsSqliteDb(conversation_database_path)
 conversation_symbol = config.get('Conversations', 'symbol')
 
 # MongoDB
@@ -104,44 +109,51 @@ class StreamListener(tweepy.StreamListener):
         }
         id = collection.insert_one(o).inserted_id
 
-        # TODO
         # Pictures
         number_of_pictures = 0
-        pictures_urls = []
-        videos_urls = []
-        # media = None
-        # if not rt:
-        #     if not hasattr(status, "extended_tweet"):
-        #         # Tweet non retweeté < 140 caractères
-        #         if hasattr(status, "entities"):
-        #             if hasattr(status.entities, "media"):
-        #                 media = status.entities.media
-        #                 print(1)
-        #     else:
-        #         # Tweet non retweeté > 140 caractères
-        #         if hasattr(status.extended_tweet, "entities"):
-        #             if hasattr(status.extended_tweet.entities, "media"):
-        #                 media = status.extended_tweet.entities.media
-        #                 print(2)
-        # else:
-        #     if not hasattr(status.retweeted_status, "extended_tweet"):
-        #         print(status.retweeted_status)
-        #         # Tweet retweeté < 140 caractères
-        #         if hasattr(status.retweeted_status, "entities"):
-        #             if hasattr(status.retweeted_status.entities, "media"):
-        #                 media = status.retweeted_status.entities.media
-        #                 print(3)
-        #     else:
-        #         # Tweet retweeté > 140 caractères
-        #         if hasattr(status.retweeted_status.extended_tweet, "entities"):
-        #             if hasattr(status.retweeted_status.extended_tweet.entities, "media"):
-        #                 media = status.retweeted_status.extended_tweet.entities.media
-        #                 print(4)
-        # print(media)
-        # if "media" in status.entities:
-        #     for e in media:
-        #         number_of_pictures += 1
-        #         pictures_db.census_picture_tweet(status.id_str, e["media_url"])
+        number_of_videos = 0
+        media = None
+        if not rt:
+            if not hasattr(status, "extended_tweet"):
+                # Tweet non retweeté < 140 caractères
+                # type = "NORT_NOET"
+                if "media" in status.entities:
+                    media = status.entities['media']
+            else:
+                # Tweet non retweeté > 140 caractères
+                # type = "NORT_ET"
+                if "media" in status.extended_tweet["entities"]:
+                    media = status.extended_tweet["entities"]["media"]
+        else:
+            if not hasattr(status.retweeted_status, "extended_tweet"):
+                # Tweet retweeté < 140 caractères
+                # type = "RT_NOET"
+                if "media" in status.retweeted_status.entities:
+                    media = status.retweeted_status.entities["media"]
+            else:
+                # Tweet retweeté > 140 caractères
+                # type = "RT_ET"
+                if "media" in status.retweeted_status.extended_tweet["entities"]:
+                    media = status.retweeted_status.extended_tweet["entities"]['media']
+        if media:
+            for m in media:
+                if "video_info" in m:
+                    number_of_videos += 1
+                    for v in m["video_info"]["variants"]:
+                        if "bitrate" in v:
+                            if int(v["bitrate"]) == 2176000:
+                                pictures_db.census_picture_tweet(
+                                    status.id_str,
+                                    "v",
+                                    v["url"]
+                                )
+                else:
+                    number_of_pictures += 1
+                    pictures_db.census_picture_tweet(
+                        status.id_str,
+                        "p",
+                        m["media_url"]
+                    )
 
         in_reply_to = status.in_reply_to_status_id_str
         if rt:
@@ -149,7 +161,8 @@ class StreamListener(tweepy.StreamListener):
                 in_reply_to = status.retweeted_status.in_reply_to_status_id_str
 
         # Conversation
-        conversations_db.census_tweet(status.id_str, in_reply_to)
+        # conversations_db.census_tweet(status.id_str, in_reply_to)
+        # TODO
 
         # Quoted tweet
         quoted_tweet = hasattr(status, "quoted_status")
@@ -157,11 +170,9 @@ class StreamListener(tweepy.StreamListener):
 
         print("================================================================================")
         print(
-            f"{streaming_symbol}  🐦 {get_tweet_url(status.id_str)} 🕓 {date} 💾 {id} {retweet_symbol if rt else ''}{picture_symbol * number_of_pictures}{conversation_symbol if in_reply_to else ''}{quoted_tweet_symbol if quoted_tweet else ''}"
+            f"{streaming_symbol}  🐦 {get_tweet_url(status.id_str)} 🕓 {date} 💾 {id} {retweet_symbol if rt else ''}{picture_symbol * number_of_pictures}{video_symbol * number_of_videos}{conversation_symbol if in_reply_to else ''}{quoted_tweet_symbol if quoted_tweet else ''}"
         )
         print(f"{fulltext}")
-        # print(videos_urls)
-        # print(pictures_urls)
 
     def on_error(self, status_code):
         print(f'{streaming_symbol}  ERROR: {status_code}')
@@ -182,11 +193,4 @@ def signal_handler(sig, frame):
 
 
 signal.signal(signal.SIGINT, signal_handler)
-stream.filter(track=track)
-
-# while True:
-#     try:
-#         stream.filter(track=track)
-#     except Exception as error:
-#         print(error)
-#         continue
+stream.filter(track=track)  # , is_async=True

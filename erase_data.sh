@@ -2,3 +2,5 @@
 rm ./conversations.sqlite
 rm ./pictures.sqlite
 rm -rf ./pictures
+rm data.xlsx
+
